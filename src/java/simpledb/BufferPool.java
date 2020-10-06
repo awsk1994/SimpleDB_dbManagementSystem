@@ -91,7 +91,6 @@ public class BufferPool {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            System.out.println("c2 | scanning");
         }
 
         return null;
