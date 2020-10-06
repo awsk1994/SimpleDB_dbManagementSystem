@@ -3,6 +3,7 @@ package simpledb;
 import java.io.*;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -77,17 +78,20 @@ public class BufferPool {
             // retrieve page data
             int tableId = pid.getTableId();
             HeapFile hf = (HeapFile) Database.getCatalog().getDatabaseFile(tableId);
+            // detect if cache is full, evict if fulled.
             try {
                 HeapPage page = (HeapPage) hf.readPage(pid);
+
+                if (_pagePool.size() >= _numPages) {    // Reached max capacity. Evict a page.
+                    evictPage();
+                }
+
                 _pagePool.put(pid, new HeapPage((HeapPageId) pid, page.getPageData()));
                 return page;
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            // detect if cache is full, evict if fulled.
-            if (_pagePool.size() >= _numPages) {
-                throw new DbException(String.format("BufferPool reaches maximum limit (%i) pages", _numPages));
-            }
+            System.out.println("c2 | scanning");
         }
 
         return null;
@@ -183,9 +187,11 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // some code goes here
-        // not necessary for lab1
-
+        Iterator<PageId> iter = _pagePool.keySet().iterator();
+        while(iter.hasNext()){
+            PageId pageId = iter.next();
+            flushPage(pageId);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -206,8 +212,13 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        Page page = _pagePool.get(pid);
+        if(page == null){
+            return; // Can't find in buffer.
+        }
+        DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+        file.writePage(page);
+        page.markDirty(false, null);    // mark as not dirty
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -221,9 +232,21 @@ public class BufferPool {
      * Discards a page from the buffer pool.
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
-    private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
+    private synchronized void evictPage() throws DbException {
+        for(PageId pageId: _pagePool.keySet()){
+            Page page = _pagePool.get(pageId);
+            if(page.isDirty() == null){ // is not dirty
+                try{
+                    flushPage(pageId);
+                    _pagePool.remove(pageId);
+                    return;
+                } catch (java.io.IOException e){
+                    throw new DbException("Cannot flush page(id = " + pageId + ")");
+                }
+            }
+        }
+
+        throw new DbException("Cannot find undirty page to evict in BufferPool.");
     }
 
 }

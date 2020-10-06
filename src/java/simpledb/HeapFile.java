@@ -146,7 +146,6 @@ public class HeapFile implements DbFile {
 
                     HeapPageId hpid = new HeapPageId(getId(), nextPageNum);
 
-                    // below 2 code is bad... hasNext should not modify things.
                     _curPage = (HeapPage) Database.getBufferPool().getPage(tid, hpid, Permissions.READ_ONLY);
                     _cursor = _curPage.iterator();
                     return _cursor.hasNext();
